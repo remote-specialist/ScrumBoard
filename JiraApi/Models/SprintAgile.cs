@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace JiraApi
+namespace JiraApi.Models
 {
     public class SprintAgile
     {
@@ -8,7 +8,7 @@ namespace JiraApi
         public int Id { get; set; }
 
         [JsonPropertyName("name")]
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
 
         [JsonPropertyName("startDate")]
         public DateTime StartDate { get; set; }

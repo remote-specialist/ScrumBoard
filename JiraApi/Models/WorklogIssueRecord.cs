@@ -1,6 +1,6 @@
 ﻿using System.Net.Mail;
 
-namespace JiraApi
+namespace JiraApi.Models
 {
     public class WorklogIssueRecord
     {

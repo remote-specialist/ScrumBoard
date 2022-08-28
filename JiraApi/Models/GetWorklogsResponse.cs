@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace JiraApi
+namespace JiraApi.Models
 {
     public class GetWorklogsResponse
     {

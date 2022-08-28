@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Domain
+﻿namespace Domain.Models
 {
     public class SprintTableRow
     {
@@ -20,11 +14,11 @@ namespace Domain
 
         public int TeamMembersCount { get; set; }
 
-        public Decimal HoursSpent { get; set; }
+        public decimal HoursSpent { get; set; }
 
-        public Decimal HoursNeeded { get; set; }
+        public decimal HoursNeeded { get; set; }
 
-        public Decimal HoursSpentPerMember { get; set; }
+        public decimal HoursSpentPerMember { get; set; }
 
         public int ProcessedIssues { get; set; }
 
@@ -36,11 +30,11 @@ namespace Domain
 
         public string TotalIssuesLink { get; set; } = string.Empty;
 
-        public Decimal TotalStoryPoints { get; set; }
+        public decimal TotalStoryPoints { get; set; }
 
         public string TotalStoryPointsLink { get; set; } = string.Empty;
 
-        public Decimal DoneStoryPoints { get; set; }
+        public decimal DoneStoryPoints { get; set; }
 
         public string DoneStoryPointsLink { get; set; } = string.Empty;
     }

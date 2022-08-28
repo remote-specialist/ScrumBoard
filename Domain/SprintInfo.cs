@@ -1,5 +1,7 @@
-﻿using Extensions;
+﻿using Domain.Models;
+using Extensions;
 using JiraApi;
+using JiraApi.Models;
 using Microsoft.Extensions.Configuration;
 using System.Text.Json;
 using System.Web;
@@ -11,6 +13,7 @@ namespace Domain
         private readonly IJiraClient _jiraClient;
         private readonly IConfiguration _configuration;
         private readonly string _jiraUrl;
+        private readonly string _defaultColor;
         
         
         public SprintInfo(IJiraClient jiraClient, IConfiguration configuration)
@@ -18,6 +21,7 @@ namespace Domain
             _jiraClient = jiraClient;
             _configuration = configuration;
             _jiraUrl = configuration["JiraUrl"];
+            _defaultColor = "#3F51B5";
         }
 
         public async Task<SprintData> GetChordForSprintAsync(SprintAgile sprint)
@@ -35,9 +39,6 @@ namespace Domain
             
             // get sprint stories
             var storyPointIssues = await _jiraClient.GetSprintStoriesAsync(sprint.Id);
-
-            // get Jira url
-            //var url = _jiraUrl;
 
             // get sprint worklogs
             var sprintWorklogRecords = await _jiraClient.GetWorklogRecordsAsync(openSprintIssues, sprintData.Start);
@@ -59,7 +60,7 @@ namespace Domain
                 
                 // update total story points
                 var storyPoints = 0M;
-                if (storyPointIssues.Any(i => i.Key == issue.Key))
+                if (storyPointIssues.Any(i => i.Key == issue.Key) && issue.Fields.StoryPoints != null)
                 {
                     storyPoints = (decimal) issue.Fields.StoryPoints;
                 }
@@ -166,7 +167,7 @@ namespace Domain
                     var node = new SprintNode
                     {
                         IssueSummary = worklogActivityRecord.GetJiraIssue().Fields.Summary,
-                        Color = jiraStatus.Color,
+                        Color = jiraStatus.Color != null ? jiraStatus.Color : _defaultColor,
                         IsIssue = true,
                         Name = issueNodeKey,
                         TotalMinutes = timeSpentInMinutes,
@@ -243,7 +244,7 @@ namespace Domain
                     var node = new SprintNode
                     {
                         IssueSummary = issue.Fields.Summary,
-                        Color = jiraStatus.Color,
+                        Color = jiraStatus.Color != null ? jiraStatus.Color : _defaultColor,
                         IsIssue = true,
                         Name = issueNodeKey,
                         TotalMinutes = 0,
