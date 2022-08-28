@@ -1,25 +1,22 @@
-﻿namespace JiraApi
+﻿using System.Text.Json.Serialization;
+
+namespace JiraApi
 {
     public class SprintAgile
     {
+        [JsonPropertyName("id")]
         public int Id { get; set; }
 
-        public string Self { get; set; }
-
-        public string State { get; set; }
-
+        [JsonPropertyName("name")]
         public string Name { get; set; }
 
-        public string StartDate { get; set; }
+        [JsonPropertyName("startDate")]
+        public DateTime StartDate { get; set; }
 
-        public string EndDate { get; set; }
+        [JsonPropertyName("endDate")]
+        public DateTime EndDate { get; set; }
 
+        [JsonPropertyName("originBoardId")]
         public int OriginBoardId { get; set; }
-
-        public string Goal { get; set; }
-
-        public DateTime GetStart() => DateTime.Parse(StartDate);
-
-        public DateTime GetEnd() => DateTime.Parse(EndDate);
     }
 }

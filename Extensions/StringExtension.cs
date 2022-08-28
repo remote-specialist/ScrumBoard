@@ -26,7 +26,9 @@ namespace Extensions
 
         public static string FillTemplate(this string template, string data)
         {
-            return template.Replace("INSERTDATAHERE", data);
+            var replaced = template.Replace("INSERTDATAHERE", data);
+            replaced = replaced.Replace("</body>", $"<div>UTC:{DateTime.UtcNow}</div></body>");
+            return replaced;
         }
     }
 }

@@ -31,14 +31,14 @@ namespace ScrumBoard
         }
 
         [FunctionName("GetSprintData")]
-        public async Task Run([TimerTrigger("0 */15 * * * *")] TimerInfo myTimer, ILogger log)
+        public async Task Run([TimerTrigger("0 */5 * * * *")] TimerInfo myTimer, ILogger log)
         {
             log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
-            if (!DateTime.Now.IsWorkingTime())
-            {
-                log.LogInformation($"Give me some rest!");
-                return;
-            }
+            //if (!DateTime.Now.IsWorkingTime())
+            //{
+            //    log.LogInformation($"Give me some rest!");
+            //    return;
+            //}
 
             log.LogInformation("Download templates");
             var timeFlowTemplate = await _storageClient.DownloadAsync(_configuration["TimeFlowTemplate"]);

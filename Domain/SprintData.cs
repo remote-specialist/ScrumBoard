@@ -7,7 +7,8 @@
         public DateTime End { get; set; }
         public string Description { get; set; } = string.Empty;
 
-        public int[,] Matrix { get; set; } = new int[0, 0];
+        //public int[,] Matrix { get; set; } = new int[0, 0];
+        public List<List<int>> Matrix { get; set; } = new List<List<int>>();
 
         public List<SprintNode> Labels { get; set; } = new List<SprintNode>();
 
