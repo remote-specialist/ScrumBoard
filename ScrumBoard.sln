@@ -9,9 +9,15 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "JiraApi", "JiraApi\JiraApi.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Domain", "Domain\Domain.csproj", "{A437FC99-AF5E-4CA6-85A8-EE6CE84EEA5B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Extensions", "Extensions\Extensions.csproj", "{7B73A7F8-18C4-4948-983E-BAF6143AE2E8}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Extensions", "Extensions\Extensions.csproj", "{7B73A7F8-18C4-4948-983E-BAF6143AE2E8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StorageApi", "StorageApi\StorageApi.csproj", "{ED9969EF-155E-49A9-84D8-F881672B75B1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "StorageApi", "StorageApi\StorageApi.csproj", "{ED9969EF-155E-49A9-84D8-F881672B75B1}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Templates", "Templates", "{D2AA2B9A-D1DD-4EBF-BCA4-00DA8517A068}"
+	ProjectSection(SolutionItems) = preProject
+		Templates\TimeBoardTemplate.html = Templates\TimeBoardTemplate.html
+		Templates\TimeFlowTemplate.html = Templates\TimeFlowTemplate.html
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
