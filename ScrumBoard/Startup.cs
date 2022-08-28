@@ -1,5 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
-using Microsoft.Azure.Functions.Extensions.DependencyInjection;
+﻿using Microsoft.Azure.Functions.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using System.IO;
@@ -47,22 +46,9 @@ namespace ScrumBoard
                 })
                 .AddPolicyHandler(GetRetryPolicy());
 
-            //var jiraClient = new JiraClient(
-            //    configuration["JiraUrl"],
-            //    configuration["JiraUser"],
-            //    configuration["JiraPassword"]);
-
             builder
                 .Services
-                //.AddSingleton<IJiraClient>((s) =>
-                //{
-                //    return jiraClient;
-                //})
                 .AddSingleton<ISprintInfo, SprintInfo>()
-                //.AddSingleton<ISprintInfo>((s) =>
-                //{
-                //    return new SprintInfo(jiraClient, configuration);
-                //})
                 .AddSingleton<IStorageClient>((s) =>
                 {
                     return new StorageClient(configuration["StorageConnectionString"], configuration["StorageContainer"]);

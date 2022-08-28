@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace JiraApi
+namespace JiraApi.Models
 {
     public class IssueModel
     {
@@ -8,7 +8,7 @@ namespace JiraApi
         public string Key { get; set; } = string.Empty;
         [JsonPropertyName("fields")]
         public IssueFields Fields { get; set; } = new IssueFields();
-        
+
 
         public class IssueFields
         {
@@ -16,13 +16,13 @@ namespace JiraApi
             public string Summary { get; set; } = string.Empty;
 
             [JsonPropertyName("status")]
-            public IssueStatus Status { get; set; }
+            public IssueStatus Status { get; set; } = new IssueStatus();
 
             [JsonPropertyName("aggregatetimeestimate")]
             public long? AggregateTimeEstimate { get; set; }
 
             [JsonPropertyName("subtasks")]
-            public List<IssueSubtask> Subtasks { get; set; }
+            public List<IssueSubtask> Subtasks { get; set; } = new List<IssueSubtask>();
 
             // set Story Points field id
             [JsonPropertyName("customfield_10026")]

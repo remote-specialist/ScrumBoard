@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using JiraApi.Models;
 
 namespace JiraApi
 {
@@ -86,7 +87,7 @@ namespace JiraApi
             foreach (var sprintGreenhopper in greenhopperSprints)
             {
                 var sprint = await GetSprintAsync(sprintGreenhopper.Id);
-                if (sprint.OriginBoardId == boardId)
+                if (sprint != null && sprint.OriginBoardId == boardId)
                 {
                     sprints.Add(sprint);
                 }
@@ -95,27 +96,6 @@ namespace JiraApi
             activeAgileSprints.AddRange(sprints);
 
             return activeAgileSprints;
-        }
-
-        private async Task<List<WorklogModel>> GetWorklogsAsync(IssueModel issue, DateTime after)
-        {
-            var result = new List<WorklogModel>();
-
-            var worklogs = await GetWorklogsAsync(issue.Key);
-            foreach (var worklog in worklogs)
-            {
-                var updateDate = worklog.Updated;
-                var createDate = worklog.Created;
-
-                if ((updateDate > after)
-                    ||
-                    (createDate > after))
-                {
-                    result.Add(worklog);
-                }
-            }
-
-            return result;
         }
 
         public async Task<List<WorklogModel>> GetWorklogsAsync(string issueKey)
@@ -153,6 +133,27 @@ namespace JiraApi
             return allWorklogs;
         }
 
+        private async Task<List<WorklogModel>> GetWorklogsAsync(IssueModel issue, DateTime after)
+        {
+            var result = new List<WorklogModel>();
+
+            var worklogs = await GetWorklogsAsync(issue.Key);
+            foreach (var worklog in worklogs)
+            {
+                var updateDate = worklog.Updated;
+                var createDate = worklog.Created;
+
+                if ((updateDate > after)
+                    ||
+                    (createDate > after))
+                {
+                    result.Add(worklog);
+                }
+            }
+
+            return result;
+        }
+
         private async Task<List<SprintGreenhopper>> GetActiveGreenhopperSprintsAsync(int boardId)
         {
             var uri = $"rest/greenhopper/latest/sprintquery/{boardId}";
@@ -167,7 +168,7 @@ namespace JiraApi
             return result.Sprints.Where((i => i.State.ToUpper() == "ACTIVE")).ToList();
         }
 
-        private async Task<SprintAgile> GetSprintAsync(int sprintId)
+        private async Task<SprintAgile?> GetSprintAsync(int sprintId)
         {
             var uri = $"rest/agile/1.0/sprint/{sprintId}";
             var response = await _httpClient.GetAsync(uri);

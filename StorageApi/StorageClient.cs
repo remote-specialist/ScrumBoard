@@ -8,6 +8,11 @@ namespace StorageApi
         private readonly BlobServiceClient _blobServiceClient;
         private readonly string _containerName;
 
+        /// <summary>
+        /// Container must be created and templates must be uploaded manually
+        /// </summary>
+        /// <param name="connectionString"></param>
+        /// <param name="containerName"></param>
         public StorageClient(string connectionString, string containerName)
         {
             _blobServiceClient = new BlobServiceClient(connectionString);

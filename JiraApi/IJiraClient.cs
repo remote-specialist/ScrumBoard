@@ -1,4 +1,6 @@
-﻿namespace JiraApi
+﻿using JiraApi.Models;
+
+namespace JiraApi
 {
     public interface IJiraClient
     {

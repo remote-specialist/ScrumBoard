@@ -5,11 +5,11 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
-namespace JiraApi
+namespace JiraApi.Models
 {
     public class GetSprintGreenhopperResponse
     {
         [JsonPropertyName("sprints")]
-        public List<SprintGreenhopper> Sprints { get; set; }
+        public List<SprintGreenhopper> Sprints { get; set; } = new List<SprintGreenhopper>();
     }
 }
