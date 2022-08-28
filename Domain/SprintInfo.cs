@@ -1,21 +1,23 @@
-﻿using Atlassian.Jira;
-using Extensions;
+﻿using Extensions;
 using JiraApi;
 using Microsoft.Extensions.Configuration;
-using Newtonsoft.Json;
+using System.Text.Json;
 using System.Web;
 
 namespace Domain
 {
     public class SprintInfo : ISprintInfo
     {
-        public readonly IJiraClient _jiraClient;
-        public readonly IConfiguration _configuration; 
+        private readonly IJiraClient _jiraClient;
+        private readonly IConfiguration _configuration;
+        private readonly string _jiraUrl;
+        
         
         public SprintInfo(IJiraClient jiraClient, IConfiguration configuration)
         {
             _jiraClient = jiraClient;
             _configuration = configuration;
+            _jiraUrl = configuration["JiraUrl"];
         }
 
         public async Task<SprintData> GetChordForSprintAsync(SprintAgile sprint)
@@ -24,8 +26,8 @@ namespace Domain
             var sprintData = new SprintData
             {
                 Id = $"{sprint.OriginBoardId}-{sprint.Id}",
-                Start = sprint.GetStart(),
-                End = sprint.GetEnd()
+                Start = sprint.StartDate,
+                End = sprint.EndDate
             };
 
             // get sprint issues
@@ -35,13 +37,13 @@ namespace Domain
             var storyPointIssues = await _jiraClient.GetSprintStoriesAsync(sprint.Id);
 
             // get Jira url
-            var url = openSprintIssues.First().Jira.Url;
+            //var url = _jiraUrl;
 
             // get sprint worklogs
             var sprintWorklogRecords = await _jiraClient.GetWorklogRecordsAsync(openSprintIssues, sprintData.Start);
 
             // set estimate records
-            var estimatedIssues = new List<Issue>();
+            var estimatedIssues = new List<IssueModel>();
             
             // get statuses from configuration
             var doneStatusName = _configuration["JiraDoneStatus"];
@@ -53,45 +55,45 @@ namespace Domain
             // fill total issues, done issues, get estimated issues
             foreach (var issue in openSprintIssues)
             {
-                var isDone = issue.Status.Name == doneStatusName;
+                var isDone = issue.Fields.Status.Name == doneStatusName;
                 
                 // update total story points
                 var storyPoints = 0M;
-                if (storyPointIssues.Any(i => i.Key.Value == issue.Key.Value))
+                if (storyPointIssues.Any(i => i.Key == issue.Key))
                 {
-                    storyPoints = _jiraClient.GetStoryPoints(issue);
+                    storyPoints = (decimal) issue.Fields.StoryPoints;
                 }
                 
                 // add to stories key list
                 if (storyPoints > 0M)
                 {
                     sprintData.TotalStoryPoints += storyPoints;
-                    sprintData.TotalStoryPointsIssueKeys.Add(issue.Key.Value);
+                    sprintData.TotalStoryPointsIssueKeys.Add(issue.Key);
                 }
 
                 // increment total issues count
                 ++sprintData.TotalIssues;
 
                 // add to all issues key list
-                sprintData.TotalIssuesIssueKeys.Add(issue.Key.Value);
+                sprintData.TotalIssuesIssueKeys.Add(issue.Key);
                 
                 // update list of done issues
                 if (isDone)
                 {
                     ++sprintData.DoneIssues;
-                    sprintData.DoneIssuesIssueKeys.Add(issue.Key.Value);
+                    sprintData.DoneIssuesIssueKeys.Add(issue.Key);
                     if (storyPoints > 0M)
                     {
                         sprintData.DoneStoryPoints += storyPoints;
-                        sprintData.DoneStoryPointsIssueKeys.Add(issue.Key.Value);
+                        sprintData.DoneStoryPointsIssueKeys.Add(issue.Key);
                     }
                 }
                 
                 // Fill estimated issues
-                var estimateInSeconds = issue.TimeTrackingData?.RemainingEstimateInSeconds;
+                var estimateInSeconds = issue.Fields.AggregateTimeEstimate;
                 if (estimateInSeconds.HasValue)
                 {
-                    var subtasks = await _jiraClient.GetSubTasksAsync(issue);
+                    var subtasks = issue.Fields.Subtasks;
                     
                     if (estimateInSeconds.GetValueOrDefault() > 0 && subtasks.Count == 0)
                     {
@@ -112,14 +114,14 @@ namespace Domain
 
                 // Add user node
                 var user = worklogActivityRecord.GetUser();
-                var timeSpentInMinutes = (int)(worklogActivityRecord.GetWorklog().TimeSpentInSeconds / 60L);
+                var timeSpentInMinutes = (int)(worklogActivityRecord.GetWorklog().TimeSpentSeconds / 60L);
                 var userNodeKey = $"User{user}";
                 if (nodes.Any(n => n.Name == userNodeKey))
                 {
                     var chordNode = nodes.Single(n => n.Name == userNodeKey);
-                    if (!chordNode.IssueKeys.Contains(worklogActivityRecord.GetJiraIssue().Key.Value))
+                    if (!chordNode.IssueKeys.Contains(worklogActivityRecord.GetJiraIssue().Key))
                     {
-                        chordNode.IssueKeys.Add(worklogActivityRecord.GetJiraIssue().Key.Value);
+                        chordNode.IssueKeys.Add(worklogActivityRecord.GetJiraIssue().Key);
                     }
 
                     chordNode.TotalMinutes += timeSpentInMinutes;
@@ -139,14 +141,14 @@ namespace Domain
                         },
                         IssueKeys = new List<string>()
                         {
-                            worklogActivityRecord.GetJiraIssue().Key.Value
+                            worklogActivityRecord.GetJiraIssue().Key
                         }
                     };
 
                     nodes.Add(node);
                 }
 
-                var issueNodeKey = $"{jiraStatus.Order}-{worklogActivityRecord.GetJiraIssue().Key.Value}"; 
+                var issueNodeKey = $"{jiraStatus.Order}-{worklogActivityRecord.GetJiraIssue().Key}"; 
 
                 // Add issue node
                 if (nodes.Any(n => n.Name == issueNodeKey))
@@ -163,19 +165,19 @@ namespace Domain
                 {
                     var node = new SprintNode
                     {
-                        IssueSummary = worklogActivityRecord.GetJiraIssue().Summary,
+                        IssueSummary = worklogActivityRecord.GetJiraIssue().Fields.Summary,
                         Color = jiraStatus.Color,
                         IsIssue = true,
                         Name = issueNodeKey,
                         TotalMinutes = timeSpentInMinutes,
-                        Displayname = $"{jiraStatus.Name}-{worklogActivityRecord.GetJiraIssue().Key.Value}",
+                        Displayname = $"{jiraStatus.Name}-{worklogActivityRecord.GetJiraIssue().Key}",
                         Users = new List<string>()
                         {
                             user
                         },
                         IssueKeys = new List<string>()
                         {
-                            worklogActivityRecord.GetJiraIssue().Key.Value
+                            worklogActivityRecord.GetJiraIssue().Key
                         }
                     };
                     
@@ -225,13 +227,13 @@ namespace Domain
 
                 // Get remaining minutes
                 int remainingMinutes = 0;
-                var estimateInSeconds = issue.TimeTrackingData?.RemainingEstimateInSeconds;
+                var estimateInSeconds = issue.Fields.AggregateTimeEstimate;
                 if (estimateInSeconds.HasValue)
                 {
                     remainingMinutes = (int)(estimateInSeconds.GetValueOrDefault() / 60.0);
                 }
 
-                var issueNodeKey = $"{jiraStatus.Order}-{issue.Key.Value}";
+                var issueNodeKey = $"{jiraStatus.Order}-{issue.Key}";
                 if (nodes.Any(n => n.Name == issueNodeKey))
                 {
                     nodes.Single(n => n.Name == issueNodeKey).RemainingMinutes = remainingMinutes;
@@ -240,17 +242,17 @@ namespace Domain
                 {
                     var node = new SprintNode
                     {
-                        IssueSummary = issue.Summary,
+                        IssueSummary = issue.Fields.Summary,
                         Color = jiraStatus.Color,
                         IsIssue = true,
                         Name = issueNodeKey,
                         TotalMinutes = 0,
                         RemainingMinutes = remainingMinutes,
-                        Displayname = $"{jiraStatus.Name}-{issue.Key.Value}",
+                        Displayname = $"{jiraStatus.Name}-{issue.Key}",
                         Users = new List<string>(),
                         IssueKeys = new List<string>()
                         {
-                          issue.Key.Value
+                          issue.Key
                         }
                     };
 
@@ -285,17 +287,20 @@ namespace Domain
             // order nodes
             nodes = nodes.OrderBy(n => n.Name).ToList();
 
-            // fill matrix data
-            var matrix = new int[timeLinksKeysOrdered.Count, timeLinksKeysOrdered.Count];
+            // fill matrix
+            var matrix = new List<List<int>>();
             var iIndex = 0;
             foreach (var iKey in timeLinksKeysOrdered)
             {
                 var jIndex = 0;
+                var raw = new List<int>();
                 foreach (string jKey in timeLinksKeysOrdered)
                 {
-                    matrix[iIndex, jIndex] = timeLinks[iKey][jKey];
+                    raw.Add(timeLinks[iKey][jKey]);
                     ++jIndex;
                 }
+
+                matrix.Add(raw);
                 ++iIndex;
             }
 
@@ -303,7 +308,7 @@ namespace Domain
             foreach (var node in nodes)
             {
                 var formattedIssueKeys = GetFormattedKeysString(node.IssueKeys);
-                node.Hyperlink = node.IsIssue ? url + "browse/" + node.IssueKeys.Single() : url + "issues/?jql=key" + HttpUtility.UrlEncode(" in(" + formattedIssueKeys + ") ORDER BY priority DESC");
+                node.Hyperlink = node.IsIssue ? _jiraUrl + "browse/" + node.IssueKeys.Single() : _jiraUrl + "issues/?jql=key" + HttpUtility.UrlEncode(" in(" + formattedIssueKeys + ") ORDER BY priority DESC");
                 
                 if (!node.IsIssue)
                 {
@@ -336,19 +341,19 @@ namespace Domain
             sprintData.Matrix = matrix;
             sprintData.SprintName = sprint.Name;
 
-            sprintData.DaysLeft = DateTime.Now.BusinessDaysUntil(sprint.GetEnd());
+            sprintData.DaysLeft = DateTime.Now.BusinessDaysUntil(sprint.EndDate);
             sprintData.TeamMembersCount = userNodes.Count(m => m.TotalMinutes > 0.25 * averageMinutesByMembers);
             sprintData.HoursSpent = (decimal)(totalSpentMinutes / 60.0);
             sprintData.HoursNeeded = (decimal)(totalRemainingMinutes / 60.0);
             sprintData.ProcessedIssues = nodes.Where(n => n.IsIssue && n.TotalMinutes > 0).ToList().Count;
             sprintData.Description = $"Sprint {sprint.Name}. {sprintData.DaysLeft} day(s) till the end of sprint. "
                 + $"Users logged {(decimal)(totalSpentMinutes / 60.0)} hours. Remaining work needs {(decimal)(totalRemainingMinutes / 60.0)} hours more.";
-            sprintData.TotalStoryPointsLink = sprintData.TotalStoryPointsIssueKeys.Count == 0 ? url ?? "" : url + "issues/?jql=key" + HttpUtility.UrlEncode(" in(" + GetFormattedKeysString(sprintData.TotalStoryPointsIssueKeys) + ") ORDER BY priority DESC");
-            sprintData.DoneStoryPointsLink = sprintData.DoneStoryPointsIssueKeys.Count == 0 ? url ?? "" : url + "issues/?jql=key" + HttpUtility.UrlEncode(" in(" + GetFormattedKeysString(sprintData.DoneStoryPointsIssueKeys) + ") ORDER BY priority DESC");
-            sprintData.TotalIssuesLink = sprintData.TotalIssuesIssueKeys.Count == 0 ? url ?? "" : url + "issues/?jql=key" + HttpUtility.UrlEncode(" in(" + GetFormattedKeysString(sprintData.TotalIssuesIssueKeys) + ") ORDER BY priority DESC");
-            sprintData.DoneIssuesLink = sprintData.DoneIssuesIssueKeys.Count == 0 ? url ?? "" : url + "issues/?jql=key" + HttpUtility.UrlEncode(" in(" + GetFormattedKeysString(sprintData.DoneIssuesIssueKeys) + ") ORDER BY priority DESC");
+            sprintData.TotalStoryPointsLink = sprintData.TotalStoryPointsIssueKeys.Count == 0 ? _jiraUrl ?? "" : _jiraUrl + "issues/?jql=key" + HttpUtility.UrlEncode(" in(" + GetFormattedKeysString(sprintData.TotalStoryPointsIssueKeys) + ") ORDER BY priority DESC");
+            sprintData.DoneStoryPointsLink = sprintData.DoneStoryPointsIssueKeys.Count == 0 ? _jiraUrl ?? "" : _jiraUrl + "issues/?jql=key" + HttpUtility.UrlEncode(" in(" + GetFormattedKeysString(sprintData.DoneStoryPointsIssueKeys) + ") ORDER BY priority DESC");
+            sprintData.TotalIssuesLink = sprintData.TotalIssuesIssueKeys.Count == 0 ? _jiraUrl ?? "" : _jiraUrl + "issues/?jql=key" + HttpUtility.UrlEncode(" in(" + GetFormattedKeysString(sprintData.TotalIssuesIssueKeys) + ") ORDER BY priority DESC");
+            sprintData.DoneIssuesLink = sprintData.DoneIssuesIssueKeys.Count == 0 ? _jiraUrl ?? "" : _jiraUrl + "issues/?jql=key" + HttpUtility.UrlEncode(" in(" + GetFormattedKeysString(sprintData.DoneIssuesIssueKeys) + ") ORDER BY priority DESC");
 
-            var json = JsonConvert.SerializeObject(sprintData);
+            var json = JsonSerializer.Serialize(sprintData);
             return sprintData;
         }
 
@@ -363,9 +368,9 @@ namespace Domain
             return formatted.Remove(formatted.Length - 1);
         }
 
-        private JiraStatus GetJiraStatus(List<JiraStatus> configuredStatuses, Issue issue)
+        private JiraStatus GetJiraStatus(List<JiraStatus> configuredStatuses, IssueModel issue)
         {
-            string issueStatusName = $"{issue.Status}";
+            string issueStatusName = $"{issue.Fields.Status.Name}";
             
             var jiraStatus = configuredStatuses.FirstOrDefault(
                 s => string.Equals(s.Name, issueStatusName, StringComparison.OrdinalIgnoreCase)

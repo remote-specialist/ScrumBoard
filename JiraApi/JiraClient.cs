@@ -1,108 +1,65 @@
-﻿using Atlassian.Jira;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using Polly;
-using Polly.Timeout;
-using RestSharp;
-using System.Globalization;
+﻿using System.Text.Json;
 
 namespace JiraApi
 {
     public class JiraClient : IJiraClient
     {
-        private readonly Jira _api;
-        private readonly Policy _defaultRetryPolicy;
+        private readonly HttpClient _httpClient;
+        private readonly JsonSerializerOptions _options;
 
-        public JiraClient(string url, string user, string password)
+        public JiraClient(HttpClient httpClient)
         {
-            var settings = new JiraRestClientSettings();
-            settings.CustomFieldSerializers["com.atlassian.jira.plugin.system.customfieldtypes:userpicker"] = new Atlassian.Jira.Remote.SingleObjectCustomFieldValueSerializer("displayName");
-            settings.CustomFieldSerializers["com.atlassian.jira.plugin.system.customfieldtypes:multiuserpicker"] = new Atlassian.Jira.Remote.MultiObjectCustomFieldValueSerializer("displayName");
-
-            _api = Jira.CreateRestClient(url, user, password, settings);
-            _api.Issues.MaxIssuesPerRequest = 1000;
-
-            var policyTimeout = Policy.Timeout(600, TimeoutStrategy.Pessimistic);
-            var retryPolicy = Policy
-                .Handle<Exception>()
-                .WaitAndRetry(
-                    25,
-                    attempt => TimeSpan.FromMilliseconds(1000));
-
-            _defaultRetryPolicy = Policy.Wrap(policyTimeout, retryPolicy);
+            _httpClient = httpClient;
+            _options = new JsonSerializerOptions();
+            _options.Converters.Add(new JiraJsonDateTimeConverter());
         }
 
-        public decimal GetStoryPoints(Issue issue)
+        public async Task<List<IssueModel>> GetSprintIssuesAsync(int sprintId) => await GetIssuesAsync($"Sprint={sprintId}");
+
+        public async Task<List<IssueModel>> GetSprintStoriesAsync(int sprintId) => await GetIssuesAsync($"Sprint%3D{sprintId}%20AND%20\"Story%20Points\"%20is%20not%20EMPTY");
+
+        public async Task<List<IssueModel>> GetIssuesAsync(string jqlRequest)
         {
-            decimal storyPoints;
-            try
-            {
-                decimal.TryParse(
-                    issue.CustomFields["Story Points"].Values.First(),
-                    NumberStyles.Any,
-                    CultureInfo.InvariantCulture,
-                    out storyPoints);
-            }
-            catch
-            {
-                storyPoints = 0M;
-            }
-
-            return storyPoints;
-        }
-
-        public async Task<List<Issue>> GetSprintIssuesAsync(int sprintId) => await GetIssuesAsync($"Sprint = {sprintId}");
-
-        public async Task<List<Issue>> GetSprintStoriesAsync(int sprintId) => await GetIssuesAsync($"Sprint = {sprintId} AND \"Story Points\" is not EMPTY");
-
-        public async Task<List<Issue>> GetIssuesAsync(string jqlRequest)
-        {
-            var issuesPerPage = 50;
+            var itemsPerPage = 50;
             var count = 0;
 
-            var allIssues = new List<Issue>();
+            var allIssues = new List<IssueModel>();
 
-            var totalIssues = 0;
-            await _defaultRetryPolicy.Execute(
-                async () =>
-                {
-                    var records = await _api.Issues.GetIssuesFromJqlAsync(jqlRequest, issuesPerPage);
-                    totalIssues = records.TotalItems;
-                    allIssues.AddRange(records.ToList());
-                });
 
-            while (allIssues.Count < totalIssues)
+            var continueSearch = true;
+            do
             {
-                count += issuesPerPage;
-                await _defaultRetryPolicy.Execute(
-                    async () =>
+                var uri = $"rest/api/3/search?jql={jqlRequest}&startAt={count}&maxResults={itemsPerPage}";
+                var response = await _httpClient.GetAsync(uri);
+                var content = await response.Content.ReadAsStringAsync();
+                var result = JsonSerializer.Deserialize<GetIssuesResponse>(content);
+
+                if (result != null)
+                {
+                    count += itemsPerPage;
+
+                    var issues = result.Issues;
+                    allIssues.AddRange(issues);
+                    if (issues.Count < itemsPerPage)
                     {
-                        var records = await _api.Issues.GetIssuesFromJqlAsync(jqlRequest, issuesPerPage, count);
-                        allIssues.AddRange(records);
-                    });
+                        continueSearch = false;
+                    }
+                }
+                else
+                {
+                    continueSearch = false;
+                }
             }
+            while (continueSearch);
 
             return allIssues;
         }
 
-        public async Task<List<Issue>> GetSubTasksAsync(Issue jiraIssue)
-        {
-            var result = new List<Issue>();
-            await _defaultRetryPolicy.Execute(
-                async () =>
-                    {
-                        var subTasks = await jiraIssue.GetSubTasksAsync();
-                        result.AddRange(subTasks);
-                    });
-
-            return result;
-        }
-
-        public async Task<List<WorklogIssueRecord>> GetWorklogRecordsAsync(List<Issue> issues, DateTime after)
+        public async Task<List<WorklogIssueRecord>> GetWorklogRecordsAsync(List<IssueModel> issues, DateTime after)
         {
             var result = new List<WorklogIssueRecord>();
             
-            var tasks = new List<Task<List<Worklog>>>();
+            var tasks = new List<Task<List<WorklogModel>>>();
             for(var i = 0; i < issues.Count; i++)
             {
                 tasks.Add(GetWorklogsAsync(issues[i], after));
@@ -124,39 +81,35 @@ namespace JiraApi
         {
             var activeAgileSprints = new List<SprintAgile>();
 
-            await _defaultRetryPolicy.Execute(
-                async () =>
+            var sprints = new List<SprintAgile>();
+            var greenhopperSprints = await GetActiveGreenhopperSprintsAsync(boardId);
+            foreach (var sprintGreenhopper in greenhopperSprints)
+            {
+                var sprint = await GetSprintAsync(sprintGreenhopper.Id);
+                if (sprint.OriginBoardId == boardId)
                 {
-                    var sprints = new List<SprintAgile>();
-                    var greenhopperSprints = await GetActiveGreenhopperSprintsAsync(boardId);
-                    foreach (var sprintGreenhopper in greenhopperSprints)
-                    {
-                        var sprint = await GetSprintAsync(sprintGreenhopper.Id);
-                        if (sprint.OriginBoardId == boardId)
-                        {
-                            sprints.Add(sprint);
-                        }
-                    }
+                    sprints.Add(sprint);
+                }
+            }
 
-                    activeAgileSprints.AddRange(sprints);
-                });
+            activeAgileSprints.AddRange(sprints);
 
             return activeAgileSprints;
         }
 
-        private async Task<List<Worklog>> GetWorklogsAsync(Issue issue, DateTime after)
+        private async Task<List<WorklogModel>> GetWorklogsAsync(IssueModel issue, DateTime after)
         {
-            var result = new List<Worklog>();
+            var result = new List<WorklogModel>();
 
-            var worklogs = await GetWorklogsAsync(issue);
+            var worklogs = await GetWorklogsAsync(issue.Key);
             foreach (var worklog in worklogs)
             {
-                var updateDate = worklog.UpdateDate;
-                var createDate = worklog.CreateDate;
+                var updateDate = worklog.Updated;
+                var createDate = worklog.Created;
 
-                if ((updateDate.HasValue && updateDate.GetValueOrDefault() > after)
+                if ((updateDate > after)
                     ||
-                    (createDate.HasValue && createDate.GetValueOrDefault() > after))
+                    (createDate > after))
                 {
                     result.Add(worklog);
                 }
@@ -165,34 +118,62 @@ namespace JiraApi
             return result;
         }
 
-        private async Task<List<Worklog>> GetWorklogsAsync(Issue issue)
+        public async Task<List<WorklogModel>> GetWorklogsAsync(string issueKey)
         {
-            var result = new List<Worklog>();
-            await _defaultRetryPolicy.Execute(
-                async () =>
-                {
-                    var worklogs = await issue.GetWorklogsAsync();
-                    result.AddRange(worklogs);
-                });
+            var itemsPerPage = 50;
+            var count = 0;
 
-            return result;
+            var allWorklogs = new List<WorklogModel>();
+            var continueSearch = true;
+            do
+            {
+                var uri = $"rest/api/3/issue/{issueKey}/worklog?startAt={count}&maxResults={itemsPerPage}";
+                var response = await _httpClient.GetAsync(uri);
+                var content = await response.Content.ReadAsStringAsync();
+                var result = JsonSerializer.Deserialize<GetWorklogsResponse>(content, _options);
+                
+                if (result != null)
+                {
+                    count += itemsPerPage;
+                
+                    var worklogs = result.Worklogs;
+                    allWorklogs.AddRange(worklogs);
+                    if (worklogs.Count < itemsPerPage)
+                    {
+                        continueSearch = false;
+                    }
+                }
+                else
+                {
+                    continueSearch = false;
+                }
+            }
+            while (continueSearch);
+
+            return allWorklogs;
         }
 
         private async Task<List<SprintGreenhopper>> GetActiveGreenhopperSprintsAsync(int boardId)
         {
-            var restSharpClient = _api.RestClient.RestSharpClient;
-            var response = await restSharpClient.ExecuteAsync(
-                    new RestRequest($"{restSharpClient.BaseUrl}rest/greenhopper/latest/sprintquery/{boardId}", Method.GET));
+            var uri = $"rest/greenhopper/latest/sprintquery/{boardId}";
+            var response = await _httpClient.GetAsync(uri);
+            var content = await response.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<GetSprintGreenhopperResponse>(content);
+            if(result == null)
+            {
+                return new List<SprintGreenhopper>();
+            }
 
-            return JObject.Parse(response.Content)
-                ["sprints"].ToObject<List<SprintGreenhopper>>().Where((i => i.State.ToUpper() == "ACTIVE")).ToList();
+            return result.Sprints.Where((i => i.State.ToUpper() == "ACTIVE")).ToList();
         }
 
         private async Task<SprintAgile> GetSprintAsync(int sprintId)
         {
-            var restSharpClient = _api.RestClient.RestSharpClient;
-            var response = await restSharpClient.ExecuteAsync(new RestRequest($"{restSharpClient.BaseUrl}rest/agile/1.0/sprint/{sprintId}", Method.GET));
-            return JsonConvert.DeserializeObject<SprintAgile>(response.Content);
+            var uri = $"rest/agile/1.0/sprint/{sprintId}";
+            var response = await _httpClient.GetAsync(uri);
+            var content = await response.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<SprintAgile>(content, _options);
+            return result;
         }
     }
 }
