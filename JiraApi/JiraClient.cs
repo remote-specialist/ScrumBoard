@@ -35,7 +35,7 @@ namespace JiraApi
                 var content = await response.Content.ReadAsStringAsync();
                 var result = JsonSerializer.Deserialize<GetIssuesResponse>(content);
 
-                if (result != null)
+                if (result != null && result.Issues != null)
                 {
                     count += itemsPerPage;
 
@@ -48,7 +48,9 @@ namespace JiraApi
                 }
                 else
                 {
-                    continueSearch = false;
+                    throw new NullReferenceException($"Cannot deserialize {nameof(GetIssuesResponse)}. " +
+                        $"StatusCode: {response.StatusCode}. " +
+                        $"Content: {content}");
                 }
             }
             while (continueSearch);
@@ -112,7 +114,7 @@ namespace JiraApi
                 var content = await response.Content.ReadAsStringAsync();
                 var result = JsonSerializer.Deserialize<GetWorklogsResponse>(content, _options);
                 
-                if (result != null)
+                if (result != null && result.Worklogs != null)
                 {
                     count += itemsPerPage;
                 
@@ -125,7 +127,9 @@ namespace JiraApi
                 }
                 else
                 {
-                    continueSearch = false;
+                    throw new NullReferenceException($"Cannot deserialize {nameof(GetWorklogsResponse)}. " +
+                        $"StatusCode: {response.StatusCode}. " +
+                        $"Content: {content}");
                 }
             }
             while (continueSearch);
@@ -160,12 +164,14 @@ namespace JiraApi
             var response = await _httpClient.GetAsync(uri);
             var content = await response.Content.ReadAsStringAsync();
             var result = JsonSerializer.Deserialize<GetSprintGreenhopperResponse>(content);
-            if(result == null)
+            if(result == null || result.Sprints == null)
             {
-                return new List<SprintGreenhopper>();
+                throw new NullReferenceException($"Cannot deserialize {nameof(GetSprintGreenhopperResponse)}. " +
+                        $"StatusCode: {response.StatusCode}. " +
+                        $"Content: {content}");
             }
 
-            return result.Sprints.Where((i => i.State.ToUpper() == "ACTIVE")).ToList();
+            return result.Sprints.Where(i => i.State.ToUpper() == "ACTIVE").ToList();
         }
 
         private async Task<SprintAgile?> GetSprintAsync(int sprintId)
@@ -174,6 +180,13 @@ namespace JiraApi
             var response = await _httpClient.GetAsync(uri);
             var content = await response.Content.ReadAsStringAsync();
             var result = JsonSerializer.Deserialize<SprintAgile>(content, _options);
+            if(result == null || result.Name == null)
+            {
+                throw new NullReferenceException($"Cannot deserialize {nameof(SprintAgile)}. " +
+                        $"StatusCode: {response.StatusCode}. " +
+                        $"Content: {content}");
+            }
+
             return result;
         }
     }

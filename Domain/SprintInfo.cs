@@ -14,18 +14,29 @@ namespace Domain
         private readonly IConfiguration _configuration;
         private readonly string _jiraUrl;
         private readonly string _defaultColor;
-        
-        
+
+
         public SprintInfo(IJiraClient jiraClient, IConfiguration configuration)
         {
             _jiraClient = jiraClient;
             _configuration = configuration;
+            
             _jiraUrl = configuration["JiraUrl"];
+            if(!_jiraUrl.EndsWith("/"))
+            {
+                _jiraUrl = $"{_jiraUrl}/";
+            }
+            
             _defaultColor = "#3F51B5";
         }
 
         public async Task<SprintData> GetChordForSprintAsync(SprintAgile sprint)
         {
+            if(sprint == null || string.IsNullOrEmpty(sprint.Name))
+            {
+                throw new ArgumentNullException(nameof(sprint));
+            }
+
             // create sprintData to be filled
             var sprintData = new SprintData
             {
@@ -36,7 +47,7 @@ namespace Domain
 
             // get sprint issues
             var openSprintIssues = await _jiraClient.GetSprintIssuesAsync(sprint.Id);
-            
+
             // get sprint stories
             var storyPointIssues = await _jiraClient.GetSprintStoriesAsync(sprint.Id);
 
@@ -45,7 +56,7 @@ namespace Domain
 
             // set estimate records
             var estimatedIssues = new List<IssueModel>();
-            
+
             // get statuses from configuration
             var doneStatusName = _configuration["JiraDoneStatus"];
             doneStatusName ??= "Done";
@@ -57,14 +68,14 @@ namespace Domain
             foreach (var issue in openSprintIssues)
             {
                 var isDone = issue.Fields.Status.Name == doneStatusName;
-                
+
                 // update total story points
                 var storyPoints = 0M;
                 if (storyPointIssues.Any(i => i.Key == issue.Key) && issue.Fields.StoryPoints != null)
                 {
                     storyPoints = (decimal) issue.Fields.StoryPoints;
                 }
-                
+
                 // add to stories key list
                 if (storyPoints > 0M)
                 {
@@ -77,7 +88,7 @@ namespace Domain
 
                 // add to all issues key list
                 sprintData.TotalIssuesIssueKeys.Add(issue.Key);
-                
+
                 // update list of done issues
                 if (isDone)
                 {
@@ -89,13 +100,13 @@ namespace Domain
                         sprintData.DoneStoryPointsIssueKeys.Add(issue.Key);
                     }
                 }
-                
+
                 // Fill estimated issues
                 var estimateInSeconds = issue.Fields.AggregateTimeEstimate;
                 if (estimateInSeconds.HasValue)
                 {
                     var subtasks = issue.Fields.Subtasks;
-                    
+
                     if (estimateInSeconds.GetValueOrDefault() > 0 && subtasks.Count == 0)
                     {
                         estimatedIssues.Add(issue);
@@ -149,7 +160,7 @@ namespace Domain
                     nodes.Add(node);
                 }
 
-                var issueNodeKey = $"{jiraStatus.Order}-{worklogActivityRecord.GetJiraIssue().Key}"; 
+                var issueNodeKey = $"{jiraStatus.Order}-{worklogActivityRecord.GetJiraIssue().Key}";
 
                 // Add issue node
                 if (nodes.Any(n => n.Name == issueNodeKey))
@@ -181,7 +192,7 @@ namespace Domain
                             worklogActivityRecord.GetJiraIssue().Key
                         }
                     };
-                    
+
                     nodes.Add(node);
                 }
 
@@ -284,7 +295,7 @@ namespace Domain
 
             // order keys
             var timeLinksKeysOrdered = timeLinks.Keys.OrderBy(n => n).ToList();
-            
+
             // order nodes
             nodes = nodes.OrderBy(n => n.Name).ToList();
 
@@ -310,14 +321,14 @@ namespace Domain
             {
                 var formattedIssueKeys = GetFormattedKeysString(node.IssueKeys);
                 node.Hyperlink = node.IsIssue ? _jiraUrl + "browse/" + node.IssueKeys.Single() : _jiraUrl + "issues/?jql=key" + HttpUtility.UrlEncode(" in(" + formattedIssueKeys + ") ORDER BY priority DESC");
-                
+
                 if (!node.IsIssue)
                 {
-                    node.Description = $"{node.Displayname} spent {(Decimal)(node.TotalMinutes / 60.0)} hours on {(Decimal)node.IssueKeys.Count} item(s).";
+                    node.Description = $"{node.Displayname} spent {(decimal) (node.TotalMinutes / 60.0)} hours on {(decimal) node.IssueKeys.Count} item(s).";
                 }
                 else
                 {
-                    node.Description = $"{(Decimal)(node.TotalMinutes / 60.0)} hours were spent by {node.Users.Count} user(s) on {node.Displayname} {node.IssueSummary}. {(Decimal)(node.RemainingMinutes / 60.0)} hours left.";
+                    node.Description = $"{(decimal) (node.TotalMinutes / 60.0)} hours were spent by {node.Users.Count} user(s) on {node.Displayname} {node.IssueSummary}. {(decimal) (node.RemainingMinutes / 60.0)} hours left.";
                 }
             }
 
@@ -336,7 +347,7 @@ namespace Domain
             // get averageMinutesByMembers
             List<SprintNode> userNodes = nodes.Where(n => !n.IsIssue).ToList();
             var averageMinutesByMembers = userNodes.Count > 0 ? userNodes.Average(m => m.TotalMinutes) : 0.0;
-            
+
             // fill all the data
             sprintData.Labels = nodes;
             sprintData.Matrix = matrix;
@@ -372,18 +383,18 @@ namespace Domain
         private JiraStatus GetJiraStatus(List<JiraStatus> configuredStatuses, IssueModel issue)
         {
             string issueStatusName = $"{issue.Fields.Status.Name}";
-            
+
             var jiraStatus = configuredStatuses.FirstOrDefault(
                 s => string.Equals(s.Name, issueStatusName, StringComparison.OrdinalIgnoreCase)
                 && string.IsNullOrEmpty(s.Color) == false
                 && string.IsNullOrEmpty(s.Order) == false);
 
             jiraStatus ??= new JiraStatus
-                {
-                    Name = issueStatusName,
-                    Color = issueStatusName.GetColor(),
-                    Order = issueStatusName
-                };
+            {
+                Name = issueStatusName,
+                Color = issueStatusName.GetColor(),
+                Order = issueStatusName
+            };
 
             return jiraStatus;
         }

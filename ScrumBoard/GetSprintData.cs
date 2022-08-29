@@ -88,7 +88,7 @@ namespace ScrumBoard
                     DaysLeft = sprintData.DaysLeft,
                     TeamMembersCount = sprintData.TeamMembersCount,
                     HoursSpent = sprintData.HoursSpent,
-                    HoursSpentPerMember = sprintData.TeamMembersCount > 0 ? sprintData.HoursSpent / (Decimal)sprintData.TeamMembersCount : 0M,
+                    HoursSpentPerMember = sprintData.TeamMembersCount > 0 ? sprintData.HoursSpent / (decimal)sprintData.TeamMembersCount : 0M,
                     HoursNeeded = sprintData.HoursNeeded,
                     ProcessedIssues = sprintData.ProcessedIssues,
                     DoneIssues = sprintData.DoneIssues,
