@@ -69,7 +69,7 @@ namespace ScrumBoard
             return HttpPolicyExtensions
                    .HandleTransientHttpError()
                    .OrResult(msg => TransientHttpStatusCodes.Contains(msg.StatusCode))
-                   .WaitAndRetryAsync(1, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
+                   .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
         }
     }
 }

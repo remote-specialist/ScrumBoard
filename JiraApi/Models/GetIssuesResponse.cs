@@ -9,9 +9,7 @@ namespace JiraApi.Models
 {
     public class GetIssuesResponse
     {
-        [JsonPropertyName("total")]
-        public int Total { get; set; }
         [JsonPropertyName("issues")]
-        public List<IssueModel> Issues { get; set; } = new List<IssueModel>();
+        public List<IssueModel>? Issues { get; set; }
     }
 }

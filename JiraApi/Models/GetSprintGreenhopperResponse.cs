@@ -10,6 +10,6 @@ namespace JiraApi.Models
     public class GetSprintGreenhopperResponse
     {
         [JsonPropertyName("sprints")]
-        public List<SprintGreenhopper> Sprints { get; set; } = new List<SprintGreenhopper>();
+        public List<SprintGreenhopper>? Sprints { get; set; }
     }
 }
